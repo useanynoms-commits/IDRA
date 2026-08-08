@@ -53,25 +53,13 @@ def delete():
             return
     print("ID not found")
 
-def stats():
-    print("\n--- STATISTICS ---")
-    if not students:
-        print("No data")
-        return
-    marks = [s['marks'] for s in students]
-    print(f"Total: {len(students)}")
-    print(f"Avg Marks: {sum(marks)/len(marks):.2f}")
-    print(f"Highest: {max(marks)}")
-    print(f"Lowest: {min(marks)}")
-
 while True:
-    print("\n1.Add 2.View 3.Search 4.Update 5.Delete 6.Stats 7.Exit")
+    print("\n1.Add 2.View 3.Search 4.Update 5.Delete 6.Exit")
     ch = input("Choice: ")
     if ch == '1': add()
     elif ch == '2': view()
     elif ch == '3': search()
     elif ch == '4': update()
     elif ch == '5': delete()
-    elif ch == '6': stats()
-    elif ch == '7': break
+    elif ch == '6': break
     else: print("Invalid")
