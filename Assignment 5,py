@@ -1,0 +1,280 @@
+
+#SHOPPING CART SYSTEM
+import csv, os
+
+class Product:
+    def __init__(self, pid, name, price, stock):
+        self.pid = pid
+        self.name = name
+        self.price = float(price)
+        self.stock = int(stock)
+
+class Cart:
+    def __init__(self):
+        self.items = {}  # pid -> {'product': Product, 'qty': int}
+
+    def add(self, pid, product, qty):
+        if pid in self.items:
+            self.items[pid]['qty'] += qty
+        else:
+            self.items[pid] = {'product': product, 'qty': qty}
+
+    def remove(self, pid):
+        if pid in self.items:
+            del self.items[pid]
+            return True
+        return False
+
+    def update_qty(self, pid, delta):
+        if pid not in self.items:
+            return False
+        new_qty = self.items[pid]['qty'] + delta
+        if new_qty <= 0:
+            del self.items[pid]
+        else:
+            self.items[pid]['qty'] = new_qty
+        return True
+
+    def clear(self):
+        self.items = {}
+
+    def total(self):
+        return sum(data['product'].price * data['qty'] for data in self.items.values())
+
+class System:
+    def __init__(self):
+        self.products = {}
+        self.cart = Cart()
+        self.orders = []
+        self.load_products()
+
+    def load_products(self):
+        if os.path.exists('products.csv'):
+            with open('products.csv', 'r') as f:
+                next(csv.reader(f), None)
+                for row in csv.reader(f):
+                    if row:
+                        p = Product(int(row[0]), row[1], row[2], int(row[3]))
+                        self.products[p.pid] = p
+        else:
+            sample = [[1, "Laptop", 50000, 10], [2, "Mouse", 500, 20],
+                      [3, "Keyboard", 1000, 15], [4, "Monitor", 15000, 8],
+                      [5, "Headphones", 2000, 12]]
+            with open('products.csv', 'w', newline='') as f:
+                w = csv.writer(f)
+                w.writerow(['ID', 'Name', 'Price', 'Stock'])
+                for row in sample:
+                    w.writerow(row)
+                    self.products[row[0]] = Product(row[0], row[1], row[2], row[3])
+
+    def save_products(self):
+        with open('products.csv', 'w', newline='') as f:
+            w = csv.writer(f)
+            w.writerow(['ID', 'Name', 'Price', 'Stock'])
+            for p in self.products.values():
+                w.writerow([p.pid, p.name, p.price, p.stock])
+
+    def view_products(self):
+        while True:
+            print("\n--- PRODUCTS ---")
+            if not self.products:
+                print("No products.")
+                return
+            for p in self.products.values():
+                print(f"{p.pid} | {p.name} | Rs.{p.price} | Stock: {p.stock}")
+
+            print("\nOptions: [A]dd to cart  [B]ack to main")
+            ch = input("> ").lower()
+            if ch == 'b':
+                break
+            elif ch == 'a':
+                self.add_to_cart()
+                # after adding, stay in view_products loop? We'll stay, so user can add more or go back.
+            else:
+                print("Invalid option.")
+
+    def add_to_cart(self):
+        while True:
+            try:
+                pid = int(input("Product ID: "))
+                qty = int(input("Quantity: "))
+            except ValueError:
+                print("Invalid input.")
+                continue
+            if pid not in self.products:
+                print("Product not found.")
+                continue
+            product = self.products[pid]
+            if qty <= 0 or qty > product.stock:
+                print(f"Invalid quantity (max {product.stock})")
+                continue
+            self.cart.add(pid, product, qty)
+            print(f"Added {qty} x {product.name}.")
+            again = input("Add another? (y/n): ").lower()
+            if again != 'y':
+                break
+
+    def view_cart(self):
+        while True:
+            if not self.cart.items:
+                print("\nCart is empty.")
+                print("[B]ack to main")
+                if input("> ").lower() == 'b':
+                    break
+                continue
+
+            print("\n--- CART ---")
+            total = 0
+            for pid, data in self.cart.items.items():
+                p = data['product']
+                qty = data['qty']
+                subtotal = p.price * qty
+                total += subtotal
+                print(f"{pid} | {p.name} | {p.price} x {qty} = Rs.{subtotal:.2f}")
+            print(f"Total: Rs.{total:.2f}")
+
+            print("\nOptions: [I]ncrease qty  [D]ecrease qty  [R]emove item  [B]ack")
+            ch = input("> ").lower()
+            if ch == 'b':
+                break
+            elif ch == 'i':
+                try:
+                    pid = int(input("Product ID: "))
+                    delta = int(input("Increase by: "))
+                    if delta <= 0:
+                        print("Must be positive.")
+                        continue
+                    if self.cart.update_qty(pid, delta):
+                        print("Updated.")
+                    else:
+                        print("Product not in cart.")
+                except ValueError:
+                    print("Invalid input.")
+            elif ch == 'd':
+                try:
+                    pid = int(input("Product ID: "))
+                    delta = int(input("Decrease by: "))
+                    if delta <= 0:
+                        print("Must be positive.")
+                        continue
+                    if self.cart.update_qty(pid, -delta):
+                        print("Updated.")
+                    else:
+                        print("Product not in cart.")
+                except ValueError:
+                    print("Invalid input.")
+            elif ch == 'r':
+                try:
+                    pid = int(input("Product ID: "))
+                    if self.cart.remove(pid):
+                        print("Removed.")
+                    else:
+                        print("Not in cart.")
+                except ValueError:
+                    print("Invalid input.")
+            else:
+                print("Invalid option.")
+
+    def checkout(self):
+        if not self.cart.items:
+            print("Cart is empty.")
+            return
+        total = self.cart.total()
+        print(f"\nTotal: Rs.{total:.2f}")
+        confirm = input("Confirm order? (yes/no): ").lower()
+        if confirm != 'yes':
+            print("Cancelled.")
+            return
+        # update stock
+        for pid, data in self.cart.items.items():
+            self.products[pid].stock -= data['qty']
+        self.orders.append({'items': self.cart.items.copy(), 'total': total})
+        self.save_products()
+        self.cart.clear()
+        print(f"Order placed! Total: Rs.{total:.2f}")
+
+    def order_history(self):
+        print("\n--- ORDER HISTORY ---")
+        if not self.orders:
+            print("No orders.")
+            return
+        for i, order in enumerate(self.orders, 1):
+            print(f"\nOrder #{i} - Total: Rs.{order['total']:.2f}")
+            for pid, data in order['items'].items():
+                p = data['product']
+                print(f"  {p.name} x{data['qty']} = Rs.{p.price * data['qty']:.2f}")
+
+    def manage_products(self):
+        while True:
+            print("\n--- MANAGE ---")
+            print("1. Add Product")
+            print("2. Update Stock")
+            print("B. Back")
+            ch = input("Choice: ").lower()
+            if ch == 'b':
+                break
+            elif ch == '1':
+                try:
+                    pid = max(self.products.keys()) + 1 if self.products else 1
+                    name = input("Name: ")
+                    price = float(input("Price: "))
+                    stock = int(input("Stock: "))
+                    if price <= 0 or stock < 0:
+                        print("Invalid values.")
+                        continue
+                    self.products[pid] = Product(pid, name, price, stock)
+                    self.save_products()
+                    print(f"Added! ID: {pid}")
+                except ValueError:
+                    print("Invalid input.")
+            elif ch == '2':
+                try:
+                    pid = int(input("Product ID: "))
+                    if pid not in self.products:
+                        print("Not found.")
+                        continue
+                    new_stock = int(input("New stock: "))
+                    if new_stock < 0:
+                        print("Invalid.")
+                        continue
+                    self.products[pid].stock = new_stock
+                    self.save_products()
+                    print("Stock updated.")
+                except ValueError:
+                    print("Invalid input.")
+            else:
+                print("Invalid choice.")
+
+    def run(self):
+        while True:
+            print("\n" + "="*40)
+            print("SHOPPING CART SYSTEM")
+            print("="*40)
+            print("1. View Products")
+            print("2. View Cart")
+            print("3. Checkout")
+            print("4. Order History")
+            print("5. Manage Products")
+            print("6. Exit")
+            print("="*40)
+
+            choice = input("Choice: ")
+            if choice == '1':
+                self.view_products()
+            elif choice == '2':
+                self.view_cart()
+            elif choice == '3':
+                self.checkout()
+            elif choice == '4':
+                self.order_history()
+            elif choice == '5':
+                self.manage_products()
+            elif choice == '6':
+                print("Thank you!")
+                break
+            else:
+                print("Invalid choice.")
+            input("\nPress Enter to continue...")
+
+if __name__ == "__main__":
+    System().run()
